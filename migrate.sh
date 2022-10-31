@@ -20,13 +20,14 @@ case "$cmd" in
 	tgt_branch="$5"
 
 	cd "$tgt_repo_path"
+	git remote remove src-repo 2>/dev/null || true
 	git remote add src-repo "$src_repo_path"
-	git checkout -b "$tgt_branch"
-	git pull src-repo "$src_branch" --allow-unrelated-histories --rebase
+	git checkout -B "$tgt_branch"
+	git pull --allow-unrelated-histories --no-rebase src-repo "$src_branch"
 	git remote remove src-repo
 	;;
     move-glob-to-subdir)
-	[ $# != 7 ] && echo "usage: $0 move-repo <src_repo_path> <src_branch> <src_glob> <tgt_repo_path> <tgt_branch> <tgt_subdir_path>" && exit 1
+	[ $# != 7 ] && echo "usage: $0 move-glob-to-subdir <src_repo_path> <src_branch> <src_glob> <tgt_repo_path> <tgt_branch> <tgt_subdir_path>" && exit 1
 	src_repo_path=$(readlink -f "$2")
 	src_branch="$3"
 	src_glob="$4"
@@ -35,15 +36,19 @@ case "$cmd" in
 	tgt_subdir_path="$7"
 
 	cd "$src_repo_path"
-	src_orig_branch="$(git branch --show-current)"
+	src_orig_branch=$(git branch --show-current)
 	git checkout "$src_branch"
-	git checkout -b tmp-migrate-branch
+	git checkout -B tmp-migrate-branch
 	git filter-repo ${FORCE:+--force} --path-glob "$src_glob" --to-subdirectory-filter "$tgt_subdir_path" --refs tmp-migrate-branch
 	cd "$tgt_repo_path"
+	git remote remove src-repo 2>/dev/null || true
 	git remote add src-repo "$src_repo_path"
-	git checkout -b "$tgt_branch"
-	git pull --allow-unrelated-histories --rebase src-repo tmp-migrate-branch
+	git checkout -B tmp-migrate-branch
+	git pull --allow-unrelated-histories --no-rebase src-repo tmp-migrate-branch
 	git remote remove src-repo
+	git checkout -B "$tgt_branch"
+	git merge tmp-migrate-branch
+	git branch -D tmp-migrate-branch
 	cd "$src_repo_path"
 	git checkout "$src_orig_branch"
 	git branch -D tmp-migrate-branch
