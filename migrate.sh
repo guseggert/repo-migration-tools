@@ -1,16 +1,19 @@
 #!/bin/bash
 
-set -ex
+set -e
 
 # set the FORCE env var when testing locally on repos that haven't been cloned
 # generally you don't want to do this, since it is dangerous
 
+[ $# == 0 ] && echo "must specify a command, one of: move-repo, move-glob-to-subdir" && exit 1
+
 cmd="$1"
 
-pushd -n "$PWD"
+pushd -n "$PWD" >/dev/null
 
 case "$cmd" in
     move-repo)
+	[ $# != 5 ] && echo "usage: $0 move-repo <src_repo_path> <src_branch> <tgt_repo_path> <tgt_branch>" && exit 1
 	src_repo_path=$(readlink -f "$2")
 	src_branch="$3"
 	tgt_repo_path=$(readlink -f "$4")
@@ -23,6 +26,7 @@ case "$cmd" in
 	git remote remove src-repo
 	;;
     move-glob-to-subdir)
+	[ $# != 7 ] && echo "usage: $0 move-repo <src_repo_path> <src_branch> <src_glob> <tgt_repo_path> <tgt_branch> <tgt_subdir_path>" && exit 1
 	src_repo_path=$(readlink -f "$2")
 	src_branch="$3"
 	src_glob="$4"
