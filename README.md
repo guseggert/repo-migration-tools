@@ -11,9 +11,11 @@ There is also a script for moving GitHub issues from one repo to another.
 
 First, clone both repos locally. Do not reuse existing clones--they should be new, clean clones.
 
-The result of these commands will be a new branch on the target repo containing the changes. You should then open a PR to merge the branch into main/master. 
+The result of these commands will be a new branch on the target repo containing the changes. You should then open a PR to merge the branch into main/master, using `git merge --allow-unrelated-histories`.
 
 Note that this does not migrate tags.
+
+For non-trivial migrations there may be merge conflicts. If that happens, the script will abort and leave the rebase active. Resolve the conflicts and continue the rebase until it finishes.
 
 #### Copy a repo to a subdir of another repo
 `./migrate.sh move-repo <src_repo_path> <src_repo_branch> <dest_repo_path> <dest_repo_branch>`
