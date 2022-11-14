@@ -32,7 +32,6 @@ def transfer_issue(auth_token, issue_id, dest_repo_id):
          transferIssue(input:{issueId:"%s",repositoryId:"%s"}) {
           issue {
            number
-           url
           }
          }
         }
@@ -41,7 +40,7 @@ def transfer_issue(auth_token, issue_id, dest_repo_id):
             'https://api.github.com/graphql',
             json=query,
             headers={'Authorization': f'Bearer {auth_token}'}
-        ).json()['data']['transferIssue']['issue']
+        ).json()['data']['transferIssue']['issue']['number']
 
 def gh_token():
     return run(['gh', 'auth', 'token'])
@@ -151,12 +150,13 @@ def migrate_issues_cmd(source_repo, dest_repo):
     gh_repo = gh.get_repo(dest_repo)
     repo_id = gh_repo.raw_data['node_id']
     
-    issues = gh.search_issues(f'is:issue repo:{source_repo}')
+    issues = gh.search_issues(f'is:issue state:open repo:{source_repo}')
     for issue in issues:
         issue_id = issue.raw_data['node_id']
-        new_issue = transfer_issue(token, issue_id, repo_id)
-        new_issue_url = new_issue['url']
-        print(f'Transferred issue from {issue.url} to {new_issue_url}')
+        new_issue_number = transfer_issue(token, issue_id, repo_id)
+        new_issue = gh_repo.get_issue(new_issue_number)
+        new_issue.edit(title=f'[{source_repo}] {new_issue.title}')
+        print(f'Transferred issue from {issue.html_url} to {new_issue.html_url}')
             
     
 @click.group()
