@@ -10,6 +10,7 @@ import pathlib
 import urllib3
 import datetime
 import requests
+import fnmatch
 
 def run(args, wd=None):
     if not wd:
@@ -25,6 +26,7 @@ class RateLimitRetry(urllib3.util.retry.Retry):
         retry_after = (reset_time - datetime.datetime.now()).seconds + 1
         print(f"Rate limited, retrying after {retry_after} seconds")
         return retry_after
+
 
 def transfer_issue(auth_token, issue_id, dest_repo_id):
         query = {'query': """
@@ -42,11 +44,30 @@ def transfer_issue(auth_token, issue_id, dest_repo_id):
             headers={'Authorization': f'Bearer {auth_token}'}
         ).json()['data']['transferIssue']['issue']['number']
 
+
 def gh_token():
     return run(['gh', 'auth', 'token'])
-    
+
+
 def new_gh(token):    
     return github.Github(token, retry=RateLimitRetry())
+
+
+def find_unglobbed_files(repo_dir: str, globs: list[str]):
+    files = run(['git', 'ls-files'], wd=repo_dir).split('\n')
+    files = [f.strip() for f in files]
+    unglobbed_files = []
+    for f in files:
+        globbed = False
+        for glob in globs:
+            if fnmatch.fnmatch(f, glob):
+                globbed = True
+                break
+        if not globbed:
+            unglobbed_files.append(f)
+
+    return unglobbed_files
+
 
 class MessageUpdater(object):
     def __init__(self, source_repo: Repository):
@@ -73,20 +94,17 @@ def clone_repo(tmp_dir: str, repo: Repository) -> str:
     repo_dir = clone_dir / repo.name
     os.mkdir(repo_dir)
     run(['git', 'clone', repo.clone_url, repo_dir])
-    print(f'Cloned {repo.full_name} to {repo_dir}')
     return str(repo_dir)
 
 def filter_repo(msg_updater: MessageUpdater, source_repo_path: str, globs, dest_subdir: str):
     glob_args = [arg for glob in globs for arg in ('--path-glob', glob)]
-    fr_args = []
+    fr_args = ['--quiet']
     os.chdir(source_repo_path)
 
     if dest_subdir:
         fr_args += ['--to-subdirectory-filter', dest_subdir]
         
     fr_args += glob_args
-
-    print(f'running with args: {fr_args}')
 
     args = fr.FilteringOptions.parse_args(fr_args)
     repo_filter = fr.RepoFilter(args, commit_callback=msg_updater.commit_callback)
@@ -102,6 +120,11 @@ def migrate_repo(gh: github.Github, tmp_dir: str, source_repo, source_branch: st
             
         source_repo_dir = clone_repo(tmp_dir, source_gh_repo)
         dest_repo_dir = clone_repo(tmp_dir, dest_gh_repo)
+
+        print()
+        for unglobbed_file in find_unglobbed_files(source_repo_dir, globs):
+            print(f'Skipping unmatched file {unglobbed_file} ')
+        print()
 
         msg_updater = MessageUpdater(source_gh_repo)
         
@@ -134,9 +157,9 @@ This requires an installed and configured GitHub CLI, see https://cli.github.com
 def migrate_repo_cmd(source_repo, source_branch, glob, dest_repo, dest_subdir, dest_branch):
     globs = list(glob)
     gh = new_gh(gh_token())
-
     tmp_dir = tempfile.mkdtemp()
     dest_repo_dir = migrate_repo(gh, tmp_dir, source_repo, source_branch, globs, dest_repo, dest_subdir, dest_branch)
+
     print(f'\n\nWork done in repo: {dest_repo_dir}')
     print('Switch to that directory, finish the merge if necessary, and then open a pull request.')
 
