@@ -69,7 +69,7 @@ def find_unglobbed_files(repo_dir: str, globs: list[str]):
     return unglobbed_files
 
 
-class MessageUpdater(object):
+class Callbacks(object):
     def __init__(self, source_repo: Repository):
         self._source_repo = source_repo
 
@@ -96,7 +96,7 @@ def clone_repo(tmp_dir: str, repo: Repository) -> str:
     run(['git', 'clone', repo.clone_url, repo_dir])
     return str(repo_dir)
 
-def filter_repo(msg_updater: MessageUpdater, source_repo_path: str, globs, dest_subdir: str):
+def filter_repo(callbacks: Callbacks, source_repo_path: str, globs, dest_subdir: str):
     glob_args = [arg for glob in globs for arg in ('--path-glob', glob)]
     fr_args = ['--quiet']
     os.chdir(source_repo_path)
@@ -107,7 +107,7 @@ def filter_repo(msg_updater: MessageUpdater, source_repo_path: str, globs, dest_
     fr_args += glob_args
 
     args = fr.FilteringOptions.parse_args(fr_args)
-    repo_filter = fr.RepoFilter(args, commit_callback=msg_updater.commit_callback)
+    repo_filter = fr.RepoFilter(args, commit_callback=callbacks.commit_callback)
     repo_filter.run()
 
 
@@ -126,9 +126,9 @@ def migrate_repo(gh: github.Github, tmp_dir: str, source_repo, source_branch: st
             print(f'Skipping unmatched file {unglobbed_file} ')
         print()
 
-        msg_updater = MessageUpdater(source_gh_repo)
+        callbacks = Callbacks(source_gh_repo)
         
-        filter_repo(msg_updater, source_repo_dir, globs, dest_subdir)
+        filter_repo(callbacks, source_repo_dir, globs, dest_subdir)
 
         run(['git', 'remote', 'add', 'src-repo', source_repo_dir], wd=dest_repo_dir)
         run(['git', 'checkout', '-B', 'tmp-migrate-branch'], wd=dest_repo_dir)
