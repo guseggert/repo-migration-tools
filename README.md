@@ -26,6 +26,8 @@ python migrate.py repo \
 
 ## Migrating issues
 
+There's a command for migrating open issues between repos. A prefix will be added to the issue title showing the repo that it came from.
+
 ```
 python migrate.py issues \
   --source-repo ipfs/tar-utils \
@@ -40,4 +42,24 @@ python migrate.py clean-pull-requests \
   --source-repo ipfs/tar-utils \
   --dest-repo ipfs/libkubo
 ```
+
+## Example Workflow
+1. Run the command in [Migrating code](#migrating-code)
+1. `cd` to the temp dir where the destination repo was left
+1. Perform any cleanup actions like running `go mod tidy`, and run any builds/tests
+1. Push the branch to remote and open a PR
+1. Wire up the change into upstream dependencies
+    - e.g. in Go, navigate to its local Git repo and run `go get github.com/<owner>/<name>@<branch>` using the `--dest-branch` that you used in step 1.
+    - Open a draft PR for the upstream dependency, so that CI runs, and mention it in the migration PR so the reviewer can see that the code works upstream
+	- If there are many consumers of the old repo, consider a graceful migration:
+	    - Stub out types by making type aliases that point to types in the new repo
+		- Add deprecation notices to the types in the old repo
+		- Treat the same as other upstream dependencies (open a PR, run CI, mention in the migration PR, etc.)
+1. Once the PR is merged
+    - Tag a new version
+    - Update the upstream PRs to consume the versioned release, mark the PRs as ready, and then merge once approved
+    - Run the `issues` command to migrate open issues to the new repo
+    - Run the `clean-pull-requests` command to close open PRs
+	- Archive the old repo
+	    - If doing a "graceful migration" then tag & release a final version before archiving
 
