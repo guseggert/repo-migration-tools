@@ -31,3 +31,13 @@ python migrate.py issues \
   --source-repo ipfs/tar-utils \
   --dest-repo ipfs/libkubo
 ```
+
+## Closing PRs
+There is no easy way to "transfer" PRs. This command will close all open PRs in the source repo and leave a comment asking the requester to re-open in the destination repo.
+
+```
+python migrate.py clean-pull-requests \
+  --source-repo ipfs/tar-utils \
+  --dest-repo ipfs/libkubo
+```
+

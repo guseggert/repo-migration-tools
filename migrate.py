@@ -161,9 +161,13 @@ def migrate_repo_cmd(source_repo, source_branch, glob, dest_repo, dest_subdir, d
     dest_repo_dir = migrate_repo(gh, tmp_dir, source_repo, source_branch, globs, dest_repo, dest_subdir, dest_branch)
 
     print(f'\n\nWork done in repo: {dest_repo_dir}')
-    print('Switch to that directory, finish the merge if necessary, and then open a pull request.')
+    print('''Switch to that directory and perform any necessary followup actions such as:
+    - Finish the merge if there was a conflict
+    - Run "go mod tidy" and fix up any dependency issues
+    - Wire the change into upstream dependencies, rewrite import paths, and rerun tests
+    - Push the branch & open a pull request\n''')
 
-    
+
 @click.command(name='issues', help='Migrate issues from one repo to another.')
 @click.option('--source-repo', required=True)
 @click.option('--dest-repo', required=True)
@@ -180,13 +184,30 @@ def migrate_issues_cmd(source_repo, dest_repo):
         new_issue = gh_repo.get_issue(new_issue_number)
         new_issue.edit(title=f'[{source_repo}] {new_issue.title}')
         print(f'Transferred issue from {issue.html_url} to {new_issue.html_url}')
-            
-    
+
+
+@click.command(name='clean-pull-requests', help='Clean all open pull requests by leaving a note about the migration and then closing the PR.')
+@click.option('--source-repo', required=True)
+@click.option('--dest-repo', required=True)
+def clean_pull_requests_cmd(source_repo, dest_repo):
+    token = gh_token()
+    gh = new_gh(token)
+    source_gh_repo = gh.get_repo(source_repo)
+    dest_gh_repo = gh.get_repo(dest_repo)
+    for pr in source_gh_repo.get_pulls(state='open'):
+        print(f'Closing PR: {pr.html_url}')
+        pr.create_issue_comment(f'This repository has been moved to {dest_gh_repo.html_url}. \
+        There is not an easy way to transfer PRs, so if you would like to continue with this PR \
+        then please re-open it in the new repository and link to this PR.')
+        pr.edit(state='closed')
+
+
 @click.group()
 def migrate():
     pass
 
 migrate.add_command(migrate_repo_cmd)
 migrate.add_command(migrate_issues_cmd)
+migrate.add_command(clean_pull_requests_cmd)
     
 migrate()
