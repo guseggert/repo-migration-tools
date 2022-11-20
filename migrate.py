@@ -88,9 +88,9 @@ class Callbacks(object):
         commit.message = msg.encode()
 
        
-def clone_repo(tmp_dir: str, repo: Repository) -> str:
+def clone_repo(dest_path: str, repo: Repository) -> str:
     print(f'Cloning {repo.full_name}')
-    clone_dir = pathlib.Path(tmp_dir)
+    clone_dir = pathlib.Path(dest_path)
     repo_dir = clone_dir / repo.name
     os.mkdir(repo_dir)
     run(['git', 'clone', repo.clone_url, repo_dir])
@@ -111,33 +111,33 @@ def filter_repo(callbacks: Callbacks, source_repo_path: str, globs, dest_subdir:
     repo_filter.run()
 
 
-def migrate_repo(gh: github.Github, tmp_dir: str, source_repo, source_branch: str, globs: list[str], dest_repo, dest_subdir: str, dest_branch):
-        source_gh_repo = gh.get_repo(source_repo)
-        dest_gh_repo = gh.get_repo(dest_repo)
-        
-        if not source_branch:
-            source_branch = source_gh_repo.default_branch
-            
-        source_repo_dir = clone_repo(tmp_dir, source_gh_repo)
-        dest_repo_dir = clone_repo(tmp_dir, dest_gh_repo)
+def migrate_repo(gh: github.Github, dest_path: str, source_repo, source_branch: str, globs: list[str], dest_repo, dest_subdir: str, dest_branch):
+    source_gh_repo = gh.get_repo(source_repo)
+    dest_gh_repo = gh.get_repo(dest_repo)
 
-        print()
-        for unglobbed_file in find_unglobbed_files(source_repo_dir, globs):
-            print(f'Skipping unmatched file {unglobbed_file} ')
-        print()
+    if not source_branch:
+        source_branch = source_gh_repo.default_branch
 
-        callbacks = Callbacks(source_gh_repo)
-        
-        filter_repo(callbacks, source_repo_dir, globs, dest_subdir)
+    source_repo_dir = clone_repo(dest_path, source_gh_repo)
+    dest_repo_dir = clone_repo(dest_path, dest_gh_repo)
 
-        run(['git', 'remote', 'add', 'src-repo', source_repo_dir], wd=dest_repo_dir)
-        run(['git', 'checkout', '-B', 'tmp-migrate-branch'], wd=dest_repo_dir)
-        run(['git', 'pull', '--allow-unrelated-histories', '--no-rebase', 'src-repo', source_branch], wd=dest_repo_dir)
-        run(['git', 'checkout', '-B', dest_branch], wd=dest_repo_dir)
-        run(['git', 'merge', 'tmp-migrate-branch'], wd=dest_repo_dir)
-        run(['git', 'commit', '--amend', '-m', f'Merge commits from {source_repo}/{source_branch}'], wd=dest_repo_dir)
+    print()
+    for unglobbed_file in find_unglobbed_files(source_repo_dir, globs):
+        print(f'Skipping unmatched file {unglobbed_file} ')
+    print()
 
-        return dest_repo_dir
+    callbacks = Callbacks(source_gh_repo)
+
+    filter_repo(callbacks, source_repo_dir, globs, dest_subdir)
+
+    run(['git', 'remote', 'add', 'src-repo', source_repo_dir], wd=dest_repo_dir)
+    run(['git', 'checkout', '-B', 'tmp-migrate-branch'], wd=dest_repo_dir)
+    run(['git', 'pull', '--allow-unrelated-histories', '--no-rebase', 'src-repo', source_branch], wd=dest_repo_dir)
+    run(['git', 'checkout', '-B', dest_branch], wd=dest_repo_dir)
+    run(['git', 'merge', 'tmp-migrate-branch'], wd=dest_repo_dir)
+    run(['git', 'commit', '--amend', '-m', f'Merge commits from {source_repo}/{source_branch}'], wd=dest_repo_dir)
+
+    return dest_repo_dir
 
 
 @click.command(name='repo', help='''Move a set of files/dirs from one GitHub repo to another into a subdirectory, preserving the history.
@@ -154,11 +154,13 @@ This requires an installed and configured GitHub CLI, see https://cli.github.com
 @click.option('--dest-repo', required=True, help='the destination repo, in the form <owner>/<name>, such as "ipfs/kubo"')
 @click.option('--dest-subdir', help='the relative subdirectory in the destination repo to place the files from the source repo')
 @click.option('--dest-branch', required=True, help='the branch to create in the destination repo to contain the changes')
-def migrate_repo_cmd(source_repo, source_branch, glob, dest_repo, dest_subdir, dest_branch):
+@click.option('--dest-path', required=False, help='the filesystem path to clone the destination repo, defaults to a temp dir')
+def migrate_repo_cmd(source_repo, source_branch, glob, dest_repo, dest_subdir, dest_branch, dest_path):
     globs = list(glob)
     gh = new_gh(gh_token())
-    tmp_dir = tempfile.mkdtemp()
-    dest_repo_dir = migrate_repo(gh, tmp_dir, source_repo, source_branch, globs, dest_repo, dest_subdir, dest_branch)
+    if not dest_path or dest_path == "":
+        dest_path = tempfile.mkdtemp()
+    dest_repo_dir = migrate_repo(gh, dest_path, source_repo, source_branch, globs, dest_repo, dest_subdir, dest_branch)
 
     print(f'\n\nWork done in repo: {dest_repo_dir}')
     print('''Switch to that directory and perform any necessary followup actions such as:
