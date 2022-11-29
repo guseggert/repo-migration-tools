@@ -13,6 +13,7 @@ import requests
 import fnmatch
 
 def run(args, wd=None):
+    """Run a command and return its stdout, or raise an exception if the command fails."""
     if not wd:
         wd = os.getcwd()
     res = subprocess.run(args, cwd=wd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -21,6 +22,7 @@ def run(args, wd=None):
     return res.stdout.decode().strip()
 
 class RateLimitRetry(urllib3.util.retry.Retry):
+    """A urllib3 retry implementation for retrying rate-limited requests from the GitHub API."""
     def get_retry_after(self, response):
         reset_time = datetime.datetime.fromtimestamp(int(response.headers["X-RateLimit-Reset"]))
         retry_after = (reset_time - datetime.datetime.now()).seconds + 1
@@ -29,7 +31,8 @@ class RateLimitRetry(urllib3.util.retry.Retry):
 
 
 def transfer_issue(auth_token, issue_id, dest_repo_id):
-        query = {'query': """
+    """Transfer an issue to a new repository using the GitHub GraphQL API."""
+    query = {'query': """
         mutation{
          transferIssue(input:{issueId:"%s",repositoryId:"%s"}) {
           issue {
@@ -37,15 +40,16 @@ def transfer_issue(auth_token, issue_id, dest_repo_id):
           }
          }
         }
-        """ % (issue_id, dest_repo_id)}
-        return requests.post(
-            'https://api.github.com/graphql',
-            json=query,
-            headers={'Authorization': f'Bearer {auth_token}'}
-        ).json()['data']['transferIssue']['issue']['number']
+    """ % (issue_id, dest_repo_id)}
+    return requests.post(
+        'https://api.github.com/graphql',
+        json=query,
+        headers={'Authorization': f'Bearer {auth_token}'}
+    ).json()['data']['transferIssue']['issue']['number']
 
 
 def gh_token():
+    """Fetch the GH CLI token, this is just a shortcut for obtaining a valid GitHub API token."""
     return run(['gh', 'auth', 'token'])
 
 
@@ -54,6 +58,7 @@ def new_gh(token):
 
 
 def find_unglobbed_files(repo_dir: str, globs: list[str]):
+    """Find the files recursively in the given dir that don't match the given globs."""
     files = run(['git', 'ls-files'], wd=repo_dir).split('\n')
     files = [f.strip() for f in files]
     unglobbed_files = []
@@ -74,6 +79,8 @@ class Callbacks(object):
         self._source_repo = source_repo
 
     def commit_callback(self, commit: fr.Commit, metadata):
+        """Callback for modifying commits when moving repos."""
+        # note that commit messages are byte strings
         msg = commit.message.decode()
         if 'Merge pull request' in msg:
             msg = re.sub(
