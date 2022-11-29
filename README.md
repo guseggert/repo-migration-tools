@@ -3,6 +3,7 @@ This contains tools for migrating files and issues from one GitHub repo to anoth
 ## Prerequisites
 
 - Install the GitHub CLI and login using `gh auth login`
+  - version >= 2.17.0
 - Install Python 3.11
 - Install pipenv: `pip install --user pipenv`
 - Clone this repo and `cd` to it
