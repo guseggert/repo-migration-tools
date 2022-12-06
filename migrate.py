@@ -165,8 +165,11 @@ This requires an installed and configured GitHub CLI, see https://cli.github.com
 def migrate_repo_cmd(source_repo, source_branch, glob, dest_repo, dest_subdir, dest_branch, dest_path):
     globs = list(glob)
     gh = new_gh(gh_token())
+
     if not dest_path or dest_path == "":
         dest_path = tempfile.mkdtemp()
+    os.makedirs(dest_path, exist_ok=True)
+
     dest_repo_dir = migrate_repo(gh, dest_path, source_repo, source_branch, globs, dest_repo, dest_subdir, dest_branch)
 
     print(f'\n\nWork done in repo: {dest_repo_dir}')
