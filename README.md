@@ -22,7 +22,7 @@ This also adds a note to the bottom of each git commit message indicating that t
 python migrate.py repo \
   --source-repo ipfs/tar-utils \
   --glob '*.go' --glob 'README.md' \
-  --dest-repo ipfs/libkubo \
+  --dest-repo ipfs/go-libipfs \
   --dest-subdir target \
   --dest-branch migrate-tar-utils
 ```
@@ -34,7 +34,7 @@ There's a command for migrating open issues between repos. A prefix will be adde
 ```
 python migrate.py issues \
   --source-repo ipfs/tar-utils \
-  --dest-repo ipfs/libkubo
+  --dest-repo ipfs/go-libipfs
 ```
 
 ## Closing PRs
@@ -43,7 +43,7 @@ There is no easy way to "transfer" PRs. This command will close all open PRs in 
 ```
 python migrate.py clean-pull-requests \
   --source-repo ipfs/tar-utils \
-  --dest-repo ipfs/libkubo
+  --dest-repo ipfs/go-libipfs
 ```
 
 ## Example Workflow
