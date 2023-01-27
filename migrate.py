@@ -188,9 +188,9 @@ def migrate_issues_cmd(source_repo, dest_repo):
     gh = new_gh(token)
     gh_repo = gh.get_repo(dest_repo)
     repo_id = gh_repo.raw_data['node_id']
-    
+
     issues = gh.search_issues(f'is:issue state:open repo:{source_repo}')
-    for issue in issues:
+    for issue in sorted(issues, key=lambda i: i.number):
         issue_id = issue.raw_data['node_id']
         new_issue_number = transfer_issue(token, issue_id, repo_id)
         new_issue = gh_repo.get_issue(new_issue_number)
