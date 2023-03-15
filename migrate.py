@@ -17,7 +17,13 @@ def run(args, wd=None):
     """Run a command and return its stdout, or raise an exception if the command fails."""
     if not wd:
         wd = os.getcwd()
-    res = subprocess.run(args, cwd=wd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    res = subprocess.run(
+        args,
+        cwd=pathlib.Path(wd).resolve(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     if res.returncode != 0:
         raise Exception(f'error running {args[0]}: {res.stdout.decode()} {res.stderr.decode()}')
     return res.stdout.decode().strip()
