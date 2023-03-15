@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import re
 import github
 import git_filter_repo as fr
