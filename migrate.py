@@ -110,7 +110,7 @@ def filter_repo(callbacks: Callbacks, source_repo_path: str, globs, dest_subdir:
 
     if dest_subdir:
         fr_args += ['--to-subdirectory-filter', dest_subdir]
-        
+
     fr_args += glob_args
 
     args = fr.FilteringOptions.parse_args(fr_args)
@@ -118,15 +118,30 @@ def filter_repo(callbacks: Callbacks, source_repo_path: str, globs, dest_subdir:
     repo_filter.run()
 
 
-def migrate_repo(gh: github.Github, dest_path: str, source_repo, source_branch: str, globs: list[str], dest_repo, dest_subdir: str, dest_branch):
+def migrate_repo(gh: github.Github,
+                 source_repo: str,
+                 source_branch: str,
+                 source_path: str,
+                 globs: list[str],
+                 dest_path: str,
+                 dest_repo: str,
+                 dest_subdir: str,
+                 dest_branch: str,
+                 dest_skip_clone: bool):
     source_gh_repo = gh.get_repo(source_repo)
     dest_gh_repo = gh.get_repo(dest_repo)
 
     if not source_branch:
         source_branch = source_gh_repo.default_branch
 
-    source_repo_dir = clone_repo(dest_path, source_gh_repo)
-    dest_repo_dir = clone_repo(dest_path, dest_gh_repo)
+    source_repo_dir = clone_repo(source_path, source_gh_repo)
+
+    if dest_skip_clone and not dest_path:
+        raise Exception("Must specify a destination path to skip cloning")
+
+    dest_repo_dir = dest_path
+    if not dest_skip_clone:
+        dest_repo_dir = clone_repo(dest_path, dest_gh_repo)
 
     print()
     for unglobbed_file in find_unglobbed_files(source_repo_dir, globs):
@@ -143,6 +158,7 @@ def migrate_repo(gh: github.Github, dest_path: str, source_repo, source_branch: 
     run(['git', 'checkout', '-B', dest_branch], wd=dest_repo_dir)
     run(['git', 'merge', 'tmp-migrate-branch'], wd=dest_repo_dir)
     run(['git', 'commit', '--amend', '-m', f'Merge commits from {source_repo}/{source_branch}'], wd=dest_repo_dir)
+    run(['git', 'remote', 'remove', 'src-repo'], wd=dest_repo_dir)
 
     return dest_repo_dir
 
@@ -161,8 +177,9 @@ This requires an installed and configured GitHub CLI, see https://cli.github.com
 @click.option('--dest-repo', required=True, help='the destination repo, in the form <owner>/<name>, such as "ipfs/kubo"')
 @click.option('--dest-subdir', help='the relative subdirectory in the destination repo to place the files from the source repo')
 @click.option('--dest-branch', required=True, help='the branch to create in the destination repo to contain the changes')
-@click.option('--dest-path', required=False, help='the filesystem path to clone the destination repo, defaults to a temp dir')
-def migrate_repo_cmd(source_repo, source_branch, glob, dest_repo, dest_subdir, dest_branch, dest_path):
+@click.option('--dest-path', required=False, help='the filesystem path of the destination repo, defaults to a new temp dir')
+@click.option('--dest-skip-clone', is_flag=True, default=False, required=False, help='skip cloning the destination repo (useful if the repo already exists at the destination path)')
+def migrate_repo_cmd(source_repo, source_branch, glob, dest_repo, dest_subdir, dest_branch, dest_path, dest_skip_clone):
     globs = list(glob)
     gh = new_gh(gh_token())
 
@@ -170,7 +187,21 @@ def migrate_repo_cmd(source_repo, source_branch, glob, dest_repo, dest_subdir, d
         dest_path = tempfile.mkdtemp()
     os.makedirs(dest_path, exist_ok=True)
 
-    dest_repo_dir = migrate_repo(gh, dest_path, source_repo, source_branch, globs, dest_repo, dest_subdir, dest_branch)
+    source_path = tempfile.mkdtemp()
+    os.makedirs(source_path, exist_ok=True)
+
+    dest_repo_dir = migrate_repo(
+        gh,
+        source_repo,
+        source_branch,
+        source_path,
+        globs,
+        dest_path,
+        dest_repo,
+        dest_subdir,
+        dest_branch,
+        dest_skip_clone,
+    )
 
     print(f'\n\nWork done in repo: {dest_repo_dir}')
     print('''Switch to that directory and perform any necessary followup actions such as:
@@ -212,7 +243,6 @@ def clean_pull_requests_cmd(source_repo, dest_repo):
         There is not an easy way to transfer PRs, so if you would like to continue with this PR \
         then please re-open it in the new repository and link to this PR.')
         pr.edit(state='closed')
-
 
 @click.group()
 def migrate():
